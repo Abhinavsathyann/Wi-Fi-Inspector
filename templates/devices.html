@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="fw-bold mb-3">🖧 Connected Devices</h2>
+<div class="card shadow-sm p-3">
+  <pre class="small">{{ data|join('\n') }}</pre>
+</div>
+{% endblock %}
