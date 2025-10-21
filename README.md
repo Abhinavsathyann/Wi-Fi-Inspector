@@ -91,7 +91,15 @@ requests
 
 ---
 
+## 🧩 Technologies Used
 
+Backend: Flask (Python)
+
+Frontend: HTML5, Tailwind CSS, JavaScript
+
+Libraries: psutil, requests, socket, subprocess
+
+Icons: Lucide / Font Awesome
 
 ---
 
