@@ -134,7 +134,7 @@ pip install requests
 1. **Clone or download** this repository:
    ```bash
    git clone https://github.com/Abhinavsathyann/Wi-Fi-Inspector.git
-   cd wifi-details
+   cd wi-Fi-Inspector
 
 2. Create a virtual environment (optional but recommended):
  ```bash
