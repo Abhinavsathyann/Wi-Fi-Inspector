@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="fw-bold mb-3">🧭 Traceroute</h2>
+<form method="POST" class="mb-3">
+  <div class="input-group">
+    <input name="host" class="form-control" placeholder="Enter hostname or IP" required>
+    <button class="btn btn-primary">Run</button>
+  </div>
+</form>
+{% if result %}
+<div class="card shadow-sm p-3"><pre>{{ result }}</pre></div>
+{% endif %}
+{% endblock %}
