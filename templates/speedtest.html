@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="fw-bold mb-4">🚀 Internet Speed Test</h2>
+<div class="text-center">
+  <button id="runSpeedtest" class="btn btn-lg btn-success px-4">Run Speed Test</button>
+  <div id="speedResult" class="mt-4"></div>
+</div>
+
+<script>
+document.getElementById('runSpeedtest').addEventListener('click', async () => {
+  const btn = document.getElementById('runSpeedtest');
+  btn.disabled = true; btn.innerText = "Running...";
+  const res = await fetch('/speedtest/run');
+  const data = await res.json();
+  let html = '';
+  if (data.download) {
+    html = `
+      <div class='card p-4 mt-3 text-start'>
+        <h5>Results</h5>
+        <p><strong>Download:</strong> ${(data.download/1e6).toFixed(2)} Mbps</p>
+        <p><strong>Upload:</strong> ${(data.upload/1e6).toFixed(2)} Mbps</p>
+        <p><strong>Ping:</strong> ${data.ping} ms</p>
+        <p><strong>Server:</strong> ${data.server.host}</p>
+      </div>`;
+  } else {
+    html = '<div class="alert alert-danger">Speed test failed.</div>';
+  }
+  document.getElementById('speedResult').innerHTML = html;
+  btn.disabled = false; btn.innerText = "Run Speed Test";
+});
+</script>
+{% endblock %}
