@@ -1,175 +1,152 @@
-import platform
-import subprocess
-import re
-import socket
-import psutil
-from flask import Flask, render_template, jsonify
+import platform, psutil, socket, subprocess, json, os, time, requests
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
+# ---------- Utility functions ----------
+
 def run_cmd(cmd):
-    """Run a shell command and return stdout (str)."""
     try:
-        completed = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False, text=True, timeout=3)
-        return completed.stdout.strip()
-    except Exception:
-        # Try shell=True fallback for some systems if needed
-        try:
-            completed = subprocess.run(" ".join(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True, timeout=3)
-            return completed.stdout.strip()
-        except Exception:
-            return ""
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True, timeout=5)
+        return result.stdout.strip()
+    except Exception as e:
+        return str(e)
 
-def get_windows_wifi():
-    out = run_cmd(["netsh", "wlan", "show", "interfaces"])
-    info = {}
-    if not out:
-        return info
-    # parse lines like:    SSID                   : MyNetwork
-    for line in out.splitlines():
-        if ":" in line:
-            k, v = line.split(":", 1)
-            k = k.strip().lower()
-            v = v.strip()
-            if k == "ssid":
-                info["ssid"] = v
-            elif k == "bssid":
-                info["bssid"] = v
-            elif k == "signal":
-                info["signal"] = v
-            elif k == "radio type":
-                info["radio_type"] = v
-            elif k == "authentication":
-                info["authentication"] = v
-            elif k == "cipher":
-                info["cipher"] = v
-            elif k == "channel":
-                info["channel"] = v
-    return info
-
-def get_macos_wifi():
-    # macOS airport utility path
-    airport = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
-    out = run_cmd([airport, "-I"]) if psutil.os.name != 'nt' else ""
-    info = {}
-    if not out:
-        return info
-    # sample lines:     SSID: MyNetwork
-    for line in out.splitlines():
-        if ":" in line:
-            k, v = line.split(":", 1)
-            k = k.strip().lower()
-            v = v.strip()
-            if k == "ssid":
-                info["ssid"] = v
-            elif k == "agrctlrssi" or k == "rssi":
-                info["rssi"] = v
-            elif k == "agrctlnoise" or k == "noise":
-                info["noise"] = v
-            elif k == "channel":
-                info["channel"] = v
-            elif k == "bssid":
-                info["bssid"] = v
-            elif k == "country":
-                info["country"] = v
-    return info
-
-def get_linux_wifi():
-    # Prefer nmcli if available
-    info = {}
-    nmcli_out = run_cmd(["nmcli", "-t", "-f", "ACTIVE,SSID,BSSID,CHAN,FREQ,SIGNAL,SECURITY", "dev", "wifi"])
-    if nmcli_out:
-        # find the ACTIVE:yes line
-        for line in nmcli_out.splitlines():
+def get_wifi_details():
+    sysname = platform.system().lower()
+    data = {}
+    if "windows" in sysname:
+        out = run_cmd("netsh wlan show interfaces")
+        for line in out.splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                data[k.strip()] = v.strip()
+    elif "linux" in sysname:
+        out = run_cmd("nmcli -t -f active,ssid,bssid,chan,rate,signal,security dev wifi")
+        for line in out.splitlines():
             parts = line.split(":")
             if len(parts) >= 7 and parts[0] == "yes":
-                info["ssid"] = parts[1]
-                info["bssid"] = parts[2]
-                info["channel"] = parts[3]
-                info["freq"] = parts[4]
-                info["signal"] = parts[5] + "%"
-                info["security"] = parts[6]
-                return info
-    # fallback to iwgetid + iwconfig
-    ssid = run_cmd(["iwgetid", "-r"])
-    if ssid:
-        info["ssid"] = ssid
-    iwcfg = run_cmd(["iwconfig"])
-    if iwcfg:
-        # try to get wlan0 or first wireless interface block
-        m = re.search(r'(\w+)\s+IEEE', iwcfg)
-        if m:
-            iface = m.group(1)
-            # extract ESSID and Access Point and Signal level
-            essid_m = re.search(r'ESSID:"([^"]+)"', iwcfg)
-            if essid_m:
-                info["ssid"] = essid_m.group(1)
-            ap_m = re.search(r'Access Point: ([0-9A-Fa-f:]{17})', iwcfg)
-            if ap_m:
-                info["bssid"] = ap_m.group(1)
-            sig_m = re.search(r'Signal level[=|:]\s*([-0-9]+)', iwcfg)
-            if sig_m:
-                info["signal"] = sig_m.group(1)
-    return info
-
-def get_basic_network_info():
-    # IP addresses, gateway isn't trivial cross-platform without extra packages; do best-effort
-    addrs = psutil.net_if_addrs()
-    stats = psutil.net_if_stats()
-    # find likely active interface (non-loopback, up)
-    chosen = None
-    for IF, s in stats.items():
-        if not s.isup: 
-            continue
-        if IF.lower().startswith("lo") or IF == "Loopback Pseudo-Interface 1":
-            continue
-        # pick first non-loopback up interface
-        chosen = IF
-        break
-    data = {"interface": chosen}
-    if chosen:
-        iface_addrs = addrs.get(chosen, [])
-        ipv4 = None
-        mac = None
-        for a in iface_addrs:
-            if a.family == socket.AF_INET:
-                ipv4 = a.address
-            elif getattr(psutil, "AF_LINK", None) and a.family == psutil.AF_LINK:
-                mac = a.address
-            elif a.family == getattr(socket, 'AF_PACKET', None):
-                mac = a.address
-        data["ipv4"] = ipv4
-        data["mac"] = mac
-    # also include hostname
-    try:
-        data["hostname"] = socket.gethostname()
-    except Exception:
-        data["hostname"] = None
+                data = {
+                    "SSID": parts[1],
+                    "BSSID": parts[2],
+                    "Channel": parts[3],
+                    "Rate": parts[4],
+                    "Signal": parts[5],
+                    "Security": parts[6],
+                }
+    elif "darwin" in sysname:
+        out = run_cmd("/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I")
+        for line in out.splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                data[k.strip()] = v.strip()
     return data
 
-def gather_all():
-    osname = platform.system().lower()
-    wifi = {}
-    if "windows" in osname:
-        wifi = get_windows_wifi()
-    elif "darwin" in osname or "mac" in osname:
-        wifi = get_macos_wifi()
-    elif "linux" in osname:
-        wifi = get_linux_wifi()
-    else:
-        wifi = {}
-    basic = get_basic_network_info()
-    combined = {"os": osname, "wifi": wifi, "basic": basic}
-    return combined
+def get_interfaces():
+    addrs = psutil.net_if_addrs()
+    stats = psutil.net_if_stats()
+    interfaces = []
+    for name, stat in stats.items():
+        interfaces.append({
+            "name": name,
+            "isup": stat.isup,
+            "speed": stat.speed,
+            "mtu": stat.mtu,
+            "addresses": [a.address for a in addrs.get(name, []) if a.family == socket.AF_INET],
+        })
+    return interfaces
 
-@app.route("/api/json")
-def api_json():
-    return jsonify(gather_all())
+def get_system_info():
+    return {
+        "OS": platform.system(),
+        "OS Version": platform.version(),
+        "Machine": platform.machine(),
+        "Processor": platform.processor(),
+        "Python": platform.python_version(),
+        "Hostname": socket.gethostname(),
+    }
+
+def get_connected_devices():
+    out = run_cmd("arp -a")
+    return out.splitlines() if out else ["No devices found"]
+
+def run_speedtest():
+    try:
+        out = run_cmd("speedtest-cli --json")
+        return json.loads(out)
+    except:
+        return {"error": "speedtest-cli not found or failed"}
+
+def ping_host(host):
+    return run_cmd(f"ping -n 4 {host}" if platform.system() == "Windows" else f"ping -c 4 {host}")
+
+def traceroute_host(host):
+    cmd = "tracert" if platform.system() == "Windows" else "traceroute"
+    return run_cmd(f"{cmd} {host}")
+
+# ---------- Routes ----------
 
 @app.route("/")
 def index():
-    data = gather_all()
-    return render_template("index.html", data=data)
+    return render_template("index.html")
 
+@app.route("/wifi")
+def wifi():
+    return render_template("wifi.html", data=get_wifi_details())
+
+@app.route("/interfaces")
+def interfaces():
+    return render_template("interfaces.html", data=get_interfaces())
+
+@app.route("/system")
+def system():
+    return render_template("system.html", data=get_system_info())
+
+@app.route("/devices")
+def devices():
+    return render_template("devices.html", data=get_connected_devices())
+
+@app.route("/speedtest")
+def speedtest():
+    return render_template("speedtest.html")
+
+@app.route("/speedtest/run")
+def speedtest_run():
+    return jsonify(run_speedtest())
+
+@app.route("/ping", methods=["GET", "POST"])
+def ping():
+    result = None
+    if request.method == "POST":
+        host = request.form.get("host")
+        result = ping_host(host)
+    return render_template("ping.html", result=result)
+
+@app.route("/traceroute", methods=["GET", "POST"])
+def traceroute():
+    result = None
+    if request.method == "POST":
+        host = request.form.get("host")
+        result = traceroute_host(host)
+    return render_template("traceroute.html", result=result)
+
+@app.route("/api")
+def api():
+    return render_template("api.html")
+
+@app.route("/api/all")
+def api_all():
+    data = {
+        "wifi": get_wifi_details(),
+        "interfaces": get_interfaces(),
+        "system": get_system_info(),
+    }
+    return jsonify(data)
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+# ---------- Run ----------
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)
