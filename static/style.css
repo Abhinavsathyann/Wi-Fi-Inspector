@@ -1,3 +1,5 @@
-body { background-color:#f7f9fb; }
-.navbar-brand { font-weight:700; font-size:1.2rem; }
-.table { background:white; border-radius:10px; overflow:hidden; }
+body { background: #f5f7fa; }
+.card-hover { transition: all .25s ease-in-out; }
+.card-hover:hover { transform: translateY(-4px); box-shadow:0 10px 25px rgba(0,0,0,0.08); }
+.fade-in { animation: fadeIn 1s ease-in-out; }
+@keyframes fadeIn { from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);} }
