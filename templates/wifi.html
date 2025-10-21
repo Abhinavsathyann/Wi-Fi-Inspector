@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="fw-bold mb-3">📶 Wi-Fi Details</h2>
+{% if data %}
+<div class="card shadow-sm p-3">
+  <table class="table table-hover align-middle">
+    {% for k,v in data.items() %}
+    <tr><th class="text-capitalize">{{ k }}</th><td><code>{{ v }}</code></td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% else %}
+<div class="alert alert-warning">No Wi-Fi information available.</div>
+{% endif %}
+{% endblock %}
