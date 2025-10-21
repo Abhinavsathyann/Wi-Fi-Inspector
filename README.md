@@ -70,7 +70,9 @@ wifi-details/
 
 ## Requirements File Example (requirements.txt)
 flask
+
 psutil
+
 requests
 
 ---
