@@ -120,9 +120,11 @@ This project is licensed under the MIT License — free to use, modify, and shar
 
 ## 💡 Tip
 If you face ModuleNotFoundError like:
-ModuleNotFoundError: No module named 'requests'
 
+ModuleNotFoundError: No module named 'requests'
+ -
 Just run:
+
 pip install requests
 
 ---
