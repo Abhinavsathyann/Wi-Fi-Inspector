@@ -111,6 +111,11 @@ Icons: Lucide / Font Awesome
 
 ---
 
+## ⚡ License
+This project is licensed under the MIT License — free to use, modify, and share.
+
+---
+
 ## ⚙️ Installation
 
 1. **Clone or download** this repository:
